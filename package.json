@@ -7,7 +7,8 @@
     "predev": "pnpm run build:wasm",
     "build:wasm": "cp node_modules/@ladybugdb/wasm-core/index.js lib/index.js && cp node_modules/@ladybugdb/wasm-core/lbug_wasm_worker.js lib/lbug_wasm_worker.js && cp node_modules/@ladybugdb/wasm-core/sync/index.js sync/index.js",
     "dev": "vite",
-    "build": "pnpm run build:wasm && vite build",
+    "build": "pnpm run build:wasm && vite build && pnpm run copy:lib",
+    "copy:lib": "node -e \"const {copyFileSync,mkdirSync,existsSync}=require('fs');const d='dist/lib';if(!existsSync(d))mkdirSync(d,{recursive:true});['index.js','lbug_wasm_worker.js'].forEach(f=>copyFileSync('lib/'+f,d+'/'+f));const s='dist/sync';if(!existsSync(s))mkdirSync(s,{recursive:true});copyFileSync('sync/index.js',s+'/index.js')\"",
     "preview": "vite preview"
   },
   "dependencies": {
