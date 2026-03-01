@@ -24,19 +24,19 @@ function printTable(rows) {
     print('(empty result)', 'info');
     return;
   }
-  
+
   const line = document.createElement('div');
   line.className = 'output-line result';
-  
+
   let html = '<table>';
-  
+
   const headers = Object.keys(rows[0]);
   html += '<thead><tr>';
   for (const h of headers) {
     html += `<th>${h}</th>`;
   }
   html += '</tr></thead><tbody>';
-  
+
   for (const row of rows) {
     html += '<tr>';
     for (const h of headers) {
@@ -46,7 +46,7 @@ function printTable(rows) {
     html += '</tr>';
   }
   html += '</tbody></table>';
-  
+
   line.innerHTML = html;
   terminal.appendChild(line);
   terminal.scrollTop = terminal.scrollHeight;
@@ -55,23 +55,23 @@ function printTable(rows) {
 async function initDB() {
   try {
     print('Initializing Ladybug database...', 'info');
-    
+
     db = new lbug.Database(':memory:');
     conn = new lbug.Connection(db);
-    
+
     const version = await lbug.getVersion();
     const storageVersion = await lbug.getStorageVersion();
-    
+
     print(`Ladybug v${version} initialized`, 'success');
     print(`Storage version: ${storageVersion}`, 'info');
     print('', 'info');
     print('Welcome to the Ladybug Shell!', 'success');
     print('Type "help" for available commands.', 'info');
     print('', 'info');
-    
+
     statusEl.textContent = 'Ready';
     statusEl.className = 'status ready';
-    
+
     printExample();
   } catch (err) {
     print(`Failed to initialize: ${err.message}`, 'error');
@@ -88,7 +88,7 @@ function printExample() {
   print('CREATE (u:User {name: "Alice", age: 30}) -[:livesIn]-> (c:City {name: "NYC", population: 8000000});', 'info');
   print('MATCH (u:User)-[:livesIn]->(c:City) RETURN u.name, c.name;', 'info');
   print('', 'info');
-  
+
   print('=== Open Type Graph (Schema-less) ===', 'info');
   print('create graph mygraph any;', 'info');
   print('use graph mygraph;', 'info');
@@ -98,54 +98,64 @@ function printExample() {
 
 async function executeCommand(cmd) {
   const trimmed = cmd.trim();
-  
+
   if (!trimmed) return;
-  
-  commandHistory.push(trimmed);
-  historyIndex = commandHistory.length;
-  
-  print(`lbug> ${trimmed}`, 'info');
-  
-  if (trimmed.toLowerCase() === 'help') {
-    printHelp();
-    return;
-  }
-  
-  if (trimmed.toLowerCase() === 'clear') {
-    terminal.innerHTML = '';
-    return;
-  }
-  
-  if (trimmed.toLowerCase() === ':schema') {
-    await showSchema();
-    return;
-  }
-  
-  if (trimmed.toLowerCase() === 'exit') {
-    print('Goodbye!', 'success');
-    await lbug.close();
-    return;
-  }
-  
-  if (!conn) {
-    print('Database not initialized', 'error');
-    return;
-  }
-  
-  try {
-    const result = await conn.query(trimmed);
-    
-    if (result.hasNext()) {
-      // Get all rows as objects
-      const rows = await result.getAllObjects();
-      printTable(rows);
-    } else {
-      print('OK', 'success');
+
+  const statements = trimmed.split(';').map(s => s.trim()).filter(s => s);
+
+  for (const statement of statements) {
+    commandHistory.push(statement);
+    historyIndex = commandHistory.length;
+
+    print(`lbug> ${statement}`, 'info');
+
+    if (statement.toLowerCase() === 'help') {
+      printHelp();
+      continue;
     }
-    
-    await result.close();
-  } catch (err) {
-    print(`Error: ${err.message}`, 'error');
+
+    if (statement.toLowerCase() === 'clear') {
+      terminal.innerHTML = '';
+      continue;
+    }
+
+    if (statement.toLowerCase() === ':schema') {
+      await showSchema();
+      continue;
+    }
+
+    if (statement.toLowerCase() === 'exit') {
+      print('Goodbye!', 'success');
+      await lbug.close();
+      continue;
+    }
+
+    if (!conn) {
+      print('Database not initialized', 'error');
+      continue;
+    }
+
+    try {
+      const result = await conn.query(statement);
+
+      let hasResults = false;
+      const rows = [];
+      while (result.hasNext()) {
+        hasResults = true;
+        const row = await result.getNext();
+        rows.push(row);
+      }
+
+      if (hasResults && rows.length > 0) {
+        printTable(rows);
+      } else {
+        print('OK', 'success');
+      }
+
+      await result.close();
+    } catch (err) {
+      print(`Error: ${err.message}`, 'error');
+    }
   }
 }
 
@@ -175,7 +185,7 @@ async function showSchema() {
     print('Database not initialized', 'error');
     return;
   }
-  
+
   try {
     const result = await conn.query("CALL show_tables() RETURN *;");
     const rows = await result.getAllObjects();
@@ -191,9 +201,11 @@ async function showSchema() {
 }
 
 input.addEventListener('keydown', async (e) => {
-  if (e.key === 'Enter') {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
     const cmd = input.value;
     input.value = '';
+    input.style.height = 'auto';
     await executeCommand(cmd);
   } else if (e.key === 'ArrowUp') {
     e.preventDefault();
@@ -211,6 +223,11 @@ input.addEventListener('keydown', async (e) => {
       input.value = '';
     }
   }
+});
+
+input.addEventListener('input', () => {
+  input.style.height = 'auto';
+  input.style.height = input.scrollHeight + 'px';
 });
 
 initDB();

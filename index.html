@@ -104,6 +104,8 @@
       font-family: inherit;
       font-size: 14px;
       outline: none;
+      resize: none;
+      min-height: 24px;
     }
     #command-input::placeholder {
       color: #6a6a6a;
@@ -128,16 +130,16 @@
     <h1>🐞 Ladybug Shell</h1>
     <span id="status" class="status loading">Loading WASM...</span>
   </div>
-  
+
   <div class="help-panel">
     Press <kbd>Enter</kbd> to execute • Type <kbd>help</kbd> for commands • Use <kbd>↑</kbd><kbd>↓</kbd> for history
   </div>
-  
+
   <div class="terminal" id="terminal"></div>
-  
+
   <div class="input-area">
     <span class="prompt">lbug></span>
-    <input type="text" id="command-input" placeholder="Enter Cypher query or command..." autocomplete="off" autofocus>
+    <textarea id="command-input" placeholder="Enter Cypher query or command..." autocomplete="off" autofocus rows="1"></textarea>
   </div>
 
   <script type="module" src="/main.js"></script>
