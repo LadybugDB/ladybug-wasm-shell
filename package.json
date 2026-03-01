@@ -1,0 +1,18 @@
+{
+  "name": "lbug-shell-demo",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "build:wasm": "cp node_modules/@ladybugdb/wasm-core/multithreaded/index.js lib/index.js && cp node_modules/@ladybugdb/wasm-core/multithreaded/lbug_wasm_worker.js lib/lbug_wasm_worker.js && cp node_modules/@ladybugdb/wasm-core/multithreaded/sync/index.js sync/index.js",
+    "dev": "vite",
+    "build": "npm run build:wasm && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@ladybugdb/wasm-core": "^0.15.0"
+  },
+  "devDependencies": {
+    "vite": "^5.0.0"
+  }
+}

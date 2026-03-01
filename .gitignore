@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.DS_Store
+*.log
+*.local
+.env
+.env.local
+.pnpm-store/
+lib/*.js
+sync/*.js
+!lib/.gitkeep
+!sync/.gitkeep

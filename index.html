@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ladybug Shell Demo</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      padding: 0;
+      background: #1e1e1e;
+      color: #d4d4d4;
+      font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', 'Droid Sans Mono', 'Source Code Pro', monospace;
+      font-size: 14px;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    .header {
+      background: #252526;
+      padding: 12px 16px;
+      border-bottom: 1px solid #3c3c3c;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .header h1 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 600;
+      color: #569cd6;
+    }
+    .status {
+      font-size: 12px;
+      padding: 4px 8px;
+      border-radius: 4px;
+      background: #3c3c3c;
+    }
+    .status.loading {
+      background: #dcdcaa;
+      color: #1e1e1e;
+    }
+    .status.ready {
+      background: #4ec9b0;
+      color: #1e1e1e;
+    }
+    .status.error {
+      background: #f14c4c;
+      color: #fff;
+    }
+    .terminal {
+      flex: 1;
+      overflow: auto;
+      padding: 16px;
+    }
+    .output-line {
+      margin: 4px 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .output-line.error {
+      color: #f14c4c;
+    }
+    .output-line.success {
+      color: #4ec9b0;
+    }
+    .output-line.info {
+      color: #9cdcfe;
+    }
+    .output-line.result {
+      color: #d4d4d4;
+    }
+    .output-line table {
+      border-collapse: collapse;
+      margin: 8px 0;
+    }
+    .output-line td, .output-line th {
+      border: 1px solid #3c3c3c;
+      padding: 4px 8px;
+    }
+    .output-line th {
+      background: #2d2d2d;
+    }
+    .input-area {
+      background: #252526;
+      padding: 12px 16px;
+      border-top: 1px solid #3c3c3c;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .prompt {
+      color: #4ec9b0;
+      font-weight: bold;
+    }
+    #command-input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      color: #d4d4d4;
+      font-family: inherit;
+      font-size: 14px;
+      outline: none;
+    }
+    #command-input::placeholder {
+      color: #6a6a6a;
+    }
+    .help-panel {
+      background: #252526;
+      padding: 12px 16px;
+      border-bottom: 1px solid #3c3c3c;
+      font-size: 12px;
+      color: #6a6a6a;
+    }
+    .help-panel kbd {
+      background: #3c3c3c;
+      padding: 2px 6px;
+      border-radius: 3px;
+      color: #d4d4d4;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>🐞 Ladybug Shell</h1>
+    <span id="status" class="status loading">Loading WASM...</span>
+  </div>
+  
+  <div class="help-panel">
+    Press <kbd>Enter</kbd> to execute • Type <kbd>help</kbd> for commands • Use <kbd>↑</kbd><kbd>↓</kbd> for history
+  </div>
+  
+  <div class="terminal" id="terminal"></div>
+  
+  <div class="input-area">
+    <span class="prompt">lbug></span>
+    <input type="text" id="command-input" placeholder="Enter Cypher query or command..." autocomplete="off" autofocus>
+  </div>
+
+  <script type="module" src="/main.js"></script>
+</body>
+</html>
