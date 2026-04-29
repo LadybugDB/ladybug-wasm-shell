@@ -27,6 +27,9 @@
       align-items: center;
       gap: 12px;
     }
+    .header-spacer {
+      flex: 1;
+    }
     .header h1 {
       margin: 0;
       font-size: 16px;
@@ -50,6 +53,11 @@
     .status.error {
       background: #f14c4c;
       color: #fff;
+    }
+    .package-version {
+      color: #9cdcfe;
+      font-size: 12px;
+      white-space: nowrap;
     }
     .terminal {
       flex: 1;
@@ -130,6 +138,8 @@
   <div class="header">
     <h1>🐞 Ladybug Shell</h1>
     <span id="status" class="status loading">Loading WASM...</span>
+    <span class="header-spacer"></span>
+    <span id="wasm-core-version" class="package-version"></span>
   </div>
 
   <div class="help-panel">

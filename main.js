@@ -5,6 +5,7 @@ lbug.setWorkerPath('./lib/lbug_wasm_worker.js');
 const terminal = document.getElementById('terminal');
 const input = document.getElementById('command-input');
 const statusEl = document.getElementById('status');
+const wasmCoreVersionEl = document.getElementById('wasm-core-version');
 
 let db = null;
 let conn = null;
@@ -13,6 +14,8 @@ let historyIndex = -1;
 
 const OPFS_MOUNT_PATH = '/opfs';
 const DATABASE_PATH = `${OPFS_MOUNT_PATH}/ladybug-shell`;
+
+wasmCoreVersionEl.textContent = `wasm-core ${__WASM_CORE_VERSION__}`;
 
 function print(text, className = '') {
   const line = document.createElement('div');
