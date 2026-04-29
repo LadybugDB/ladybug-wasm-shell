@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@ladybugdb/wasm-core':
-        specifier: ^0.15.1
-        version: 0.15.1
+        specifier: 0.16.0
+        version: 0.16.0
     devDependencies:
       vite:
         specifier: ^5.0.0
@@ -156,8 +156,8 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@ladybugdb/wasm-core@0.15.1':
-    resolution: {integrity: sha512-dHEq8inJQBkHnJrqZMKGdltSfeSv9OHECkzWQixqDLApXXGlbJ5Ugq5rRfk2PLJuZ74LVHT0cZvcn4JLmsnAIA==}
+  '@ladybugdb/wasm-core@0.16.0':
+    resolution: {integrity: sha512-ezCYDCDducxllXFMqB191No82uROLMSbocfTTf2t4EtLxNRY7KSNfjgY/bsFhcYMASxqPH4UlRI+nJmbIj0ecg==}
 
   '@rollup/rollup-android-arm-eabi@4.59.0':
     resolution: {integrity: sha512-upnNBkA6ZH2VKGcBj9Fyl9IGNPULcjXRlg0LLeaioQWueH30p6IXtJEbKAgvyv+mJaMxSm1l6xwDXYjpEMiLMg==}
@@ -470,7 +470,7 @@ snapshots:
   '@esbuild/win32-x64@0.21.5':
     optional: true
 
-  '@ladybugdb/wasm-core@0.15.1':
+  '@ladybugdb/wasm-core@0.16.0':
     dependencies:
       threads: 1.7.0
       tiny-worker: 2.3.0

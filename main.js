@@ -11,6 +11,9 @@ let conn = null;
 let commandHistory = [];
 let historyIndex = -1;
 
+const OPFS_MOUNT_PATH = '/opfs';
+const DATABASE_PATH = `${OPFS_MOUNT_PATH}/ladybug-shell`;
+
 function print(text, className = '') {
   const line = document.createElement('div');
   line.className = `output-line ${className}`;
@@ -56,7 +59,8 @@ async function initDB() {
   try {
     print('Initializing Ladybug database...', 'info');
 
-    db = new lbug.Database(':memory:');
+    await lbug.FS.mountOpfs(OPFS_MOUNT_PATH);
+    db = new lbug.Database(DATABASE_PATH);
     conn = new lbug.Connection(db);
 
     const version = await lbug.getVersion();
@@ -64,6 +68,7 @@ async function initDB() {
 
     print(`Ladybug v${version} initialized`, 'success');
     print(`Storage version: ${storageVersion}`, 'info');
+    print(`Persistent storage: OPFS (${DATABASE_PATH})`, 'info');
     print('', 'info');
     print('Welcome to the Ladybug Shell!', 'success');
     print('Type "help" for available commands.', 'info');

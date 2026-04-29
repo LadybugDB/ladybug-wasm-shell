@@ -13,7 +13,7 @@ Open http://localhost:3000/ in your browser.
 
 ## Development
 
-The `dev` command automatically builds the WASM modules from `@ladybugdb/wasm-core` before starting the Vite dev server.
+The `dev` command automatically copies the multithreaded WASM modules from `@ladybugdb/wasm-core` before starting the Vite dev server. The shell mounts OPFS via WasmFS and stores the database at `/opfs/ladybug-shell`.
 
 ## Building
 
