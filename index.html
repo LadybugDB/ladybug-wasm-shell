@@ -59,6 +59,31 @@
       font-size: 12px;
       white-space: nowrap;
     }
+    .destructive-button {
+      background: #8b1e1e;
+      border: 1px solid #f14c4c;
+      border-radius: 4px;
+      color: #fff;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 5px 10px;
+      white-space: nowrap;
+    }
+    .destructive-button:hover {
+      background: #a62a2a;
+    }
+    .destructive-button:focus-visible {
+      outline: 2px solid #ff8a8a;
+      outline-offset: 2px;
+    }
+    .destructive-button:disabled {
+      background: #4a2a2a;
+      border-color: #6a3a3a;
+      color: #b8a0a0;
+      cursor: not-allowed;
+    }
     .terminal {
       flex: 1;
       overflow: auto;
@@ -138,6 +163,9 @@
   <div class="header">
     <h1>🐞 Ladybug Shell</h1>
     <span id="status" class="status loading">Loading WASM...</span>
+    <button id="reset-db-button" class="destructive-button" type="button" title="Deletes all persistent OPFS database data for this shell and recreates it">
+      Delete Database
+    </button>
     <span class="header-spacer"></span>
     <span id="wasm-core-version" class="package-version"></span>
   </div>

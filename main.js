@@ -6,14 +6,22 @@ const terminal = document.getElementById('terminal');
 const input = document.getElementById('command-input');
 const statusEl = document.getElementById('status');
 const wasmCoreVersionEl = document.getElementById('wasm-core-version');
+const resetDbButton = document.getElementById('reset-db-button');
 
 let db = null;
 let conn = null;
 let commandHistory = [];
 let historyIndex = -1;
+let opfsMounted = false;
+let resetInProgress = false;
 
 const OPFS_MOUNT_PATH = '/opfs';
-const DATABASE_PATH = `${OPFS_MOUNT_PATH}/ladybug-shell`;
+const DATABASE_NAME = 'ladybug-shell';
+const DATABASE_PATH = `${OPFS_MOUNT_PATH}/${DATABASE_NAME}`;
+const RESET_STEP_TIMEOUT_MS = 3000;
+const OPFS_DELETE_RETRIES = 10;
+const OPFS_DELETE_RETRY_DELAY_MS = 500;
+const RESET_PENDING_KEY = 'ladybug-shell-reset-pending';
 
 wasmCoreVersionEl.textContent = `wasm-core ${__WASM_CORE_VERSION__}`;
 
@@ -60,9 +68,14 @@ function printTable(rows) {
 
 async function initDB() {
   try {
+    await applyPendingReset();
     print('Initializing Ladybug database...', 'info');
 
-    await lbug.FS.mountOpfs(OPFS_MOUNT_PATH);
+    if (!opfsMounted) {
+      await lbug.FS.mountOpfs(OPFS_MOUNT_PATH);
+      opfsMounted = true;
+    }
+
     db = new lbug.Database(DATABASE_PATH);
     conn = new lbug.Connection(db);
 
@@ -85,6 +98,163 @@ async function initDB() {
     print(`Failed to initialize: ${err.message}`, 'error');
     statusEl.textContent = 'Error';
     statusEl.className = 'status error';
+  }
+}
+
+async function closeCurrentDB() {
+  const currentConn = conn;
+  const currentDb = db;
+  conn = null;
+  db = null;
+
+  if (currentConn) {
+    try {
+      await currentConn.close();
+    } catch (err) {
+      print(`Warning: failed to close connection: ${err.message}`, 'error');
+    }
+  }
+
+  if (currentDb) {
+    try {
+      await currentDb.close();
+    } catch (err) {
+      print(`Warning: failed to close database: ${err.message}`, 'error');
+    }
+  }
+}
+
+async function withTimeout(promise, timeoutMs, timeoutMessage) {
+  let timeoutId;
+  const timeout = new Promise((_, reject) => {
+    timeoutId = window.setTimeout(() => reject(new Error(timeoutMessage)), timeoutMs);
+  });
+
+  try {
+    return await Promise.race([promise, timeout]);
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+async function terminateWorker() {
+  try {
+    await withTimeout(
+      lbug.close(),
+      RESET_STEP_TIMEOUT_MS,
+      'Timed out while terminating the WASM worker.'
+    );
+  } catch (err) {
+    print(`Warning: ${err.message}`, 'error');
+  }
+}
+
+async function removeOpfsEntryWithRetry(root, entryName) {
+  let lastError;
+
+  for (let attempt = 1; attempt <= OPFS_DELETE_RETRIES; attempt++) {
+    try {
+      await withTimeout(
+        root.removeEntry(entryName, { recursive: true }),
+        RESET_STEP_TIMEOUT_MS,
+        `Timed out while deleting OPFS entry ${entryName}.`
+      );
+      return;
+    } catch (err) {
+      lastError = err;
+      if (attempt === OPFS_DELETE_RETRIES) {
+        break;
+      }
+      await sleep(OPFS_DELETE_RETRY_DELAY_MS);
+    }
+  }
+
+  throw lastError;
+}
+
+async function deleteNativeOpfsContents() {
+  if (!navigator.storage?.getDirectory) {
+    throw new Error('Native OPFS deletion is not available in this browser.');
+  }
+
+  const root = await navigator.storage.getDirectory();
+  const deleted = [];
+
+  for await (const entryName of root.keys()) {
+    await removeOpfsEntryWithRetry(root, entryName);
+    deleted.push(entryName);
+  }
+
+  return deleted;
+}
+
+async function applyPendingReset() {
+  if (window.sessionStorage.getItem(RESET_PENDING_KEY) !== '1') {
+    return;
+  }
+
+  window.sessionStorage.removeItem(RESET_PENDING_KEY);
+  resetDbButton.disabled = true;
+  input.disabled = true;
+  statusEl.textContent = 'Resetting';
+  statusEl.className = 'status loading';
+
+  try {
+    print('Deleting persistent OPFS database data before opening the database...', 'info');
+
+    const deletedEntries = await deleteNativeOpfsContents();
+    if (deletedEntries.length > 0) {
+      print(`Deleted persistent OPFS entries: ${deletedEntries.join(', ')}`, 'success');
+    } else {
+      print(`No existing persistent OPFS entries found for ${DATABASE_NAME}`, 'info');
+    }
+  } finally {
+    resetDbButton.disabled = false;
+    input.disabled = false;
+  }
+}
+
+async function resetDatabase() {
+  if (resetInProgress) {
+    print('Database reset is already in progress.', 'info');
+    return;
+  }
+
+  resetInProgress = true;
+  resetDbButton.disabled = true;
+  input.disabled = true;
+  statusEl.textContent = 'Resetting';
+  statusEl.className = 'status loading';
+
+  try {
+    print('Resetting database after reload...', 'info');
+    window.sessionStorage.setItem(RESET_PENDING_KEY, '1');
+
+    await withTimeout(
+      closeCurrentDB(),
+      RESET_STEP_TIMEOUT_MS,
+      'Timed out while closing the current database.'
+    ).catch((err) => {
+      print(`Warning: ${err.message}`, 'error');
+    });
+    await terminateWorker();
+    await sleep(OPFS_DELETE_RETRY_DELAY_MS);
+
+    print('Reloading shell to clear database handles...', 'info');
+    window.location.reload();
+  } catch (err) {
+    print(`Failed to reset database: ${err.message}`, 'error');
+    statusEl.textContent = 'Error';
+    statusEl.className = 'status error';
+  } finally {
+    resetInProgress = false;
+    resetDbButton.disabled = false;
+    input.disabled = false;
+    input.focus();
   }
 }
 
@@ -132,6 +302,18 @@ async function executeCommand(cmd) {
       continue;
     }
 
+    if (statement.toLowerCase() === ':reset') {
+      const confirmed = window.confirm(
+        `Destructive action: delete all persistent OPFS database data for this shell and create a fresh database at ${DATABASE_PATH}?`
+      );
+      if (confirmed) {
+        await resetDatabase();
+      } else {
+        print('Database reset cancelled.', 'info');
+      }
+      continue;
+    }
+
     if (statement.toLowerCase() === 'exit') {
       print('Goodbye!', 'success');
       await lbug.close();
@@ -172,6 +354,7 @@ function printHelp() {
   print('  help           - Show this help message', 'info');
   print('  clear          - Clear the terminal', 'info');
   print('  :schema        - Show current schema', 'info');
+  print('  :reset         - DESTRUCTIVE: delete persistent OPFS database data and reopen a fresh database', 'info');
   print('  exit           - Close the database and exit', 'info');
   print('', 'info');
   print('Strongly Typed (Recommended):', 'info');
@@ -230,6 +413,15 @@ input.addEventListener('keydown', async (e) => {
       historyIndex = commandHistory.length;
       input.value = '';
     }
+  }
+});
+
+resetDbButton.addEventListener('click', async () => {
+  const confirmed = window.confirm(
+    `Destructive action: delete all persistent OPFS database data for this shell and create a fresh database at ${DATABASE_PATH}?`
+  );
+  if (confirmed) {
+    await resetDatabase();
   }
 });
 
