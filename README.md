@@ -21,4 +21,11 @@ The `dev` command automatically copies the multithreaded WASM modules from `@lad
 pnpm build
 ```
 
-This builds both the WASM modules and the production bundle.
+This builds both the WASM modules and the production bundle, then writes
+precompressed `.gz` and `.br` versions of text/WASM assets in `dist/`.
+
+The web server or CDN must serve those files with `Content-Encoding: gzip` or
+`Content-Encoding: br` for browsers to use them. GitHub Pages does not expose
+custom response-header configuration from this repository; use a CDN or static
+host that supports precompressed assets if you need to control compression
+explicitly.
