@@ -206,6 +206,14 @@ function splitCypherScript(script) {
 }
 
 async function readUrlText(url) {
+  if (canFetchUrl(url)) {
+    const response = await fetch(resolveFetchUrl(url));
+    if (!response.ok) {
+      throw new Error(`${response.status} ${response.statusText}`);
+    }
+    return response.text();
+  }
+
   if (typeof lbug.FS?.readFile === 'function') {
     const data = await lbug.FS.readFile(url);
     if (typeof data === 'string') {
@@ -214,11 +222,15 @@ async function readUrlText(url) {
     return new TextDecoder().decode(data);
   }
 
-  const response = await fetch(resolveFetchUrl(url));
-  if (!response.ok) {
-    throw new Error(`${response.status} ${response.statusText}`);
-  }
-  return response.text();
+  throw new Error('This build cannot read this URL as a Cypher script.');
+}
+
+function canFetchUrl(url) {
+  const lowerUrl = url.toLowerCase();
+  return lowerUrl.startsWith('http://') ||
+    lowerUrl.startsWith('https://') ||
+    lowerUrl.startsWith('xet://') ||
+    lowerUrl.startsWith('s3://');
 }
 
 function resolveFetchUrl(url) {
@@ -307,6 +319,12 @@ async function executeCypherScript(url) {
 
 async function openDatabaseUrl(url) {
   print(`Opening database ${url}`, 'info');
+
+  if (url.toLowerCase().startsWith('file://')) {
+    print('Error opening database: browser shells cannot open host file:// database paths directly. Use an http(s), s3, or xet URL, or import the database into OPFS.', 'error');
+    return;
+  }
+
   input.disabled = true;
   openUrlButton.disabled = true;
   resetDbButton.disabled = true;
