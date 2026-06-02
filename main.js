@@ -27,6 +27,7 @@ const RESET_STEP_TIMEOUT_MS = 3000;
 const OPFS_DELETE_RETRIES = 10;
 const OPFS_DELETE_RETRY_DELAY_MS = 500;
 const RESET_PENDING_KEY = 'ladybug-shell-reset-pending';
+const OPEN_DATABASE_TIMEOUT_MS = 1000;
 
 wasmCoreVersionEl.textContent = `wasm-core ${__WASM_CORE_VERSION__}`;
 
@@ -205,11 +206,74 @@ function splitCypherScript(script) {
 }
 
 async function readUrlText(url) {
-  const data = await lbug.FS.readFile(url);
-  if (typeof data === 'string') {
-    return data;
+  if (typeof lbug.FS?.readFile === 'function') {
+    const data = await lbug.FS.readFile(url);
+    if (typeof data === 'string') {
+      return data;
+    }
+    return new TextDecoder().decode(data);
   }
-  return new TextDecoder().decode(data);
+
+  const response = await fetch(resolveFetchUrl(url));
+  if (!response.ok) {
+    throw new Error(`${response.status} ${response.statusText}`);
+  }
+  return response.text();
+}
+
+function resolveFetchUrl(url) {
+  const lowerUrl = url.toLowerCase();
+
+  if (lowerUrl.startsWith('http://') || lowerUrl.startsWith('https://')) {
+    return url;
+  }
+
+  if (lowerUrl.startsWith('xet://')) {
+    return resolveXetFetchUrl(url);
+  }
+
+  if (lowerUrl.startsWith('s3://')) {
+    return resolveS3FetchUrl(url);
+  }
+
+  throw new Error('This browser build cannot read this URL through JavaScript fetch.');
+}
+
+function resolveXetFetchUrl(url) {
+  const parts = url.slice('xet://'.length).split('/').filter(Boolean);
+  const repoKind = parts[0] === 'datasets' || parts[0] === 'models' ? parts.shift() : null;
+
+  if (parts.length < 4) {
+    throw new Error('xet:// URLs must include namespace, repository, revision, and file path.');
+  }
+
+  const [namespace, repo, revision, ...pathParts] = parts;
+  const repoPrefix = repoKind === 'datasets' ? 'datasets/' : '';
+  const path = pathParts.map(encodeURIComponent).join('/');
+
+  return `https://huggingface.co/${repoPrefix}${encodeURIComponent(namespace)}/${encodeURIComponent(repo)}/resolve/${encodeURIComponent(revision)}/${path}`;
+}
+
+function resolveS3FetchUrl(url) {
+  const withoutScheme = url.slice('s3://'.length);
+  const slashIndex = withoutScheme.indexOf('/');
+  if (slashIndex === -1) {
+    throw new Error('s3:// URLs must include a bucket and object key.');
+  }
+
+  const bucket = withoutScheme.slice(0, slashIndex);
+  const key = withoutScheme.slice(slashIndex + 1).split('/').map(encodeURIComponent).join('/');
+  return `https://${bucket}.s3.amazonaws.com/${key}`;
+}
+
+async function reopenDefaultDatabase() {
+  await closeCurrentDB();
+  db = new lbug.Database(DATABASE_PATH);
+  conn = new lbug.Connection(db);
+  await conn.init();
+  statusEl.textContent = 'Ready';
+  statusEl.className = 'status ready';
+  print(`Reopened persistent storage: OPFS (${DATABASE_PATH})`, 'info');
 }
 
 async function executeCypherScript(url) {
@@ -243,26 +307,38 @@ async function executeCypherScript(url) {
 
 async function openDatabaseUrl(url) {
   print(`Opening database ${url}`, 'info');
+  input.disabled = true;
+  openUrlButton.disabled = true;
+  resetDbButton.disabled = true;
+  statusEl.textContent = 'Opening';
+  statusEl.className = 'status loading';
 
   try {
     await closeCurrentDB();
     db = new lbug.Database(url, 0, 0, true, true, false);
     conn = new lbug.Connection(db);
-    await conn.init();
+    await withTimeout(
+      conn.init(),
+      OPEN_DATABASE_TIMEOUT_MS,
+      `Timed out while opening database ${url}.`
+    );
+    statusEl.textContent = 'Ready';
+    statusEl.className = 'status ready';
     print(`Opened read-only database: ${url}`, 'success');
   } catch (err) {
     print(`Error opening database: ${err.message}`, 'error');
-    await closeCurrentDB();
-    db = new lbug.Database(DATABASE_PATH);
-    conn = new lbug.Connection(db);
     try {
-      await conn.init();
-      print(`Reopened persistent storage: OPFS (${DATABASE_PATH})`, 'info');
+      await reopenDefaultDatabase();
     } catch (reopenErr) {
       print(`Failed to reopen OPFS database: ${reopenErr.message}`, 'error');
       statusEl.textContent = 'Error';
       statusEl.className = 'status error';
     }
+  } finally {
+    input.disabled = false;
+    openUrlButton.disabled = false;
+    resetDbButton.disabled = false;
+    input.focus();
   }
 }
 
