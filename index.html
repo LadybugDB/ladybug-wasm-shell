@@ -84,6 +84,80 @@
       color: #b8a0a0;
       cursor: not-allowed;
     }
+    .toolbar-button {
+      background: #2d2d2d;
+      border: 1px solid #569cd6;
+      border-radius: 4px;
+      color: #d4d4d4;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 5px 10px;
+      white-space: nowrap;
+    }
+    .toolbar-button:hover {
+      background: #373737;
+    }
+    .toolbar-button:focus-visible {
+      outline: 2px solid #9cdcfe;
+      outline-offset: 2px;
+    }
+    .toolbar-button:disabled {
+      border-color: #4a4a4a;
+      color: #777;
+      cursor: not-allowed;
+    }
+    .open-dialog {
+      background: #252526;
+      border: 1px solid #3c3c3c;
+      border-radius: 6px;
+      color: #d4d4d4;
+      font-family: inherit;
+      max-width: min(720px, calc(100vw - 32px));
+      padding: 0;
+      width: 720px;
+    }
+    .open-dialog::backdrop {
+      background: rgb(0 0 0 / 60%);
+    }
+    .open-form {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      padding: 16px;
+    }
+    .open-form h2 {
+      color: #569cd6;
+      font-size: 14px;
+      margin: 0;
+    }
+    .open-form label {
+      color: #9cdcfe;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 12px;
+    }
+    .open-form input {
+      background: #1e1e1e;
+      border: 1px solid #3c3c3c;
+      border-radius: 4px;
+      color: #d4d4d4;
+      font-family: inherit;
+      font-size: 13px;
+      padding: 8px 10px;
+      width: 100%;
+    }
+    .open-form input:focus {
+      border-color: #569cd6;
+      outline: none;
+    }
+    .open-actions {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+    }
     .terminal {
       flex: 1;
       overflow: auto;
@@ -163,6 +237,9 @@
   <div class="header">
     <h1>🐞 Ladybug Shell</h1>
     <span id="status" class="status loading">Loading WASM...</span>
+    <button id="open-url-button" class="toolbar-button" type="button" title="Open a .cypher script or .lbdb database">
+      Open URL
+    </button>
     <button id="reset-db-button" class="destructive-button" type="button" title="Deletes all persistent OPFS database data for this shell and recreates it">
       Delete Database
     </button>
@@ -180,6 +257,20 @@
     <span class="prompt">lbug></span>
     <textarea id="command-input" placeholder="Enter Cypher query or command..." autocomplete="off" autofocus rows="1"></textarea>
   </div>
+
+  <dialog id="open-url-dialog" class="open-dialog">
+    <form id="open-url-form" class="open-form">
+      <h2>Open URL</h2>
+      <label>
+        URL
+        <input id="open-url-input" name="url" type="text" spellcheck="false" placeholder="xet://datasets/ladybugdb/small-kgs/main/kg_history/icebug-disk/schema.cypher" autocomplete="off">
+      </label>
+      <div class="open-actions">
+        <button class="toolbar-button" type="button" id="open-url-cancel-button">Cancel</button>
+        <button class="toolbar-button" type="submit">Open</button>
+      </div>
+    </form>
+  </dialog>
 
   <script type="module" src="/main.js"></script>
 </body>

@@ -6,6 +6,11 @@ const terminal = document.getElementById('terminal');
 const input = document.getElementById('command-input');
 const statusEl = document.getElementById('status');
 const wasmCoreVersionEl = document.getElementById('wasm-core-version');
+const openUrlButton = document.getElementById('open-url-button');
+const openUrlDialog = document.getElementById('open-url-dialog');
+const openUrlForm = document.getElementById('open-url-form');
+const openUrlInput = document.getElementById('open-url-input');
+const openUrlCancelButton = document.getElementById('open-url-cancel-button');
 const resetDbButton = document.getElementById('reset-db-button');
 
 let db = null;
@@ -64,6 +69,229 @@ function printTable(rows) {
   line.innerHTML = html;
   terminal.appendChild(line);
   terminal.scrollTop = terminal.scrollHeight;
+}
+
+async function runQuery(statement) {
+  if (!conn) {
+    print('Database not initialized', 'error');
+    return false;
+  }
+
+  let result = null;
+
+  try {
+    result = await conn.query(statement);
+
+    if (!result.isSuccess()) {
+      print(`Error: ${await result.getErrorMessage()}`, 'error');
+      return false;
+    }
+
+    let hasResults = false;
+    const rows = [];
+    while (result.hasNext()) {
+      hasResults = true;
+      const row = await result.getNext();
+      rows.push(row);
+    }
+
+    if (hasResults && rows.length > 0) {
+      printTable(rows);
+    } else {
+      print('OK', 'success');
+    }
+
+    await result.close();
+    result = null;
+    return true;
+  } catch (err) {
+    print(`Error: ${err.message}`, 'error');
+    return false;
+  } finally {
+    if (result) {
+      await result.close().catch(() => {});
+    }
+  }
+}
+
+function isSupportedOpenUrl(url) {
+  return /^(https?|s3|xet|file):\/\//i.test(url);
+}
+
+function getOpenUrlPathname(url) {
+  return url.split(/[?#]/, 1)[0].toLowerCase();
+}
+
+function splitCypherScript(script) {
+  const statements = [];
+  let current = '';
+  let quote = null;
+  let lineComment = false;
+  let blockComment = false;
+
+  for (let i = 0; i < script.length; i++) {
+    const char = script[i];
+    const next = script[i + 1];
+
+    if (lineComment) {
+      current += char;
+      if (char === '\n') {
+        lineComment = false;
+      }
+      continue;
+    }
+
+    if (blockComment) {
+      current += char;
+      if (char === '*' && next === '/') {
+        current += next;
+        i++;
+        blockComment = false;
+      }
+      continue;
+    }
+
+    if (quote) {
+      current += char;
+      if (char === quote) {
+        if (next === quote) {
+          current += next;
+          i++;
+        } else {
+          quote = null;
+        }
+      }
+      continue;
+    }
+
+    if (char === '-' && next === '-') {
+      current += char + next;
+      i++;
+      lineComment = true;
+      continue;
+    }
+
+    if (char === '/' && next === '*') {
+      current += char + next;
+      i++;
+      blockComment = true;
+      continue;
+    }
+
+    if (char === '\'' || char === '"') {
+      current += char;
+      quote = char;
+      continue;
+    }
+
+    if (char === ';') {
+      const statement = current.trim();
+      if (statement) {
+        statements.push(statement);
+      }
+      current = '';
+      continue;
+    }
+
+    current += char;
+  }
+
+  const statement = current.trim();
+  if (statement) {
+    statements.push(statement);
+  }
+
+  return statements;
+}
+
+async function readUrlText(url) {
+  const data = await lbug.FS.readFile(url);
+  if (typeof data === 'string') {
+    return data;
+  }
+  return new TextDecoder().decode(data);
+}
+
+async function executeCypherScript(url) {
+  print(`Opening script ${url}`, 'info');
+
+  let script;
+  try {
+    script = await readUrlText(url);
+  } catch (err) {
+    print(`Error reading script: ${err.message}`, 'error');
+    return;
+  }
+
+  const statements = splitCypherScript(script);
+  if (statements.length === 0) {
+    print('No Cypher statements found', 'info');
+    return;
+  }
+
+  print(`Executing ${statements.length} Cypher statement${statements.length === 1 ? '' : 's'} from script`, 'info');
+
+  for (const statement of statements) {
+    print(`lbug> ${statement}`, 'info');
+    const ok = await runQuery(statement);
+    if (!ok) {
+      print('Stopped executing script after error', 'error');
+      return;
+    }
+  }
+}
+
+async function openDatabaseUrl(url) {
+  print(`Opening database ${url}`, 'info');
+
+  try {
+    await closeCurrentDB();
+    db = new lbug.Database(url, 0, 0, true, true, false);
+    conn = new lbug.Connection(db);
+    await conn.init();
+    print(`Opened read-only database: ${url}`, 'success');
+  } catch (err) {
+    print(`Error opening database: ${err.message}`, 'error');
+    await closeCurrentDB();
+    db = new lbug.Database(DATABASE_PATH);
+    conn = new lbug.Connection(db);
+    try {
+      await conn.init();
+      print(`Reopened persistent storage: OPFS (${DATABASE_PATH})`, 'info');
+    } catch (reopenErr) {
+      print(`Failed to reopen OPFS database: ${reopenErr.message}`, 'error');
+      statusEl.textContent = 'Error';
+      statusEl.className = 'status error';
+    }
+  }
+}
+
+async function openUrl(url) {
+  const trimmedUrl = url.trim();
+
+  if (!trimmedUrl) {
+    print('Usage: :open <schema.cypher | database.lbdb URL>', 'error');
+    return;
+  }
+
+  if (!isSupportedOpenUrl(trimmedUrl)) {
+    print(`Unsupported URL scheme: ${trimmedUrl}`, 'error');
+    return;
+  }
+
+  const pathname = getOpenUrlPathname(trimmedUrl);
+
+  if (pathname.endsWith('.cypher')) {
+    await executeCypherScript(trimmedUrl);
+    return;
+  }
+
+  if (pathname.endsWith('.lbdb')) {
+    await openDatabaseUrl(trimmedUrl);
+    return;
+  }
+
+  print('Unsupported file type. :open currently accepts .cypher scripts and .lbdb databases.', 'error');
 }
 
 async function initDB() {
@@ -302,6 +530,16 @@ async function executeCommand(cmd) {
       continue;
     }
 
+    if (statement.toLowerCase() === ':open') {
+      await openUrl('');
+      continue;
+    }
+
+    if (statement.toLowerCase().startsWith(':open ')) {
+      await openUrl(statement.slice(':open '.length));
+      continue;
+    }
+
     if (statement.toLowerCase() === ':reset') {
       const confirmed = window.confirm(
         `Destructive action: delete all persistent OPFS database data for this shell and create a fresh database at ${DATABASE_PATH}?`
@@ -320,32 +558,7 @@ async function executeCommand(cmd) {
       continue;
     }
 
-    if (!conn) {
-      print('Database not initialized', 'error');
-      continue;
-    }
-
-    try {
-      const result = await conn.query(statement);
-
-      let hasResults = false;
-      const rows = [];
-      while (result.hasNext()) {
-        hasResults = true;
-        const row = await result.getNext();
-        rows.push(row);
-      }
-
-      if (hasResults && rows.length > 0) {
-        printTable(rows);
-      } else {
-        print('OK', 'success');
-      }
-
-      await result.close();
-    } catch (err) {
-      print(`Error: ${err.message}`, 'error');
-    }
+    await runQuery(statement);
   }
 }
 
@@ -353,6 +566,7 @@ function printHelp() {
   print('Available commands:', 'info');
   print('  help           - Show this help message', 'info');
   print('  clear          - Clear the terminal', 'info');
+  print('  :open <url>    - Execute a .cypher script or open a .lbdb database URL', 'info');
   print('  :schema        - Show current schema', 'info');
   print('  :reset         - DESTRUCTIVE: delete persistent OPFS database data and reopen a fresh database', 'info');
   print('  exit           - Close the database and exit', 'info');
@@ -414,6 +628,25 @@ input.addEventListener('keydown', async (e) => {
       input.value = '';
     }
   }
+});
+
+openUrlButton.addEventListener('click', () => {
+  openUrlDialog.showModal();
+  openUrlInput.focus();
+  openUrlInput.select();
+});
+
+openUrlCancelButton.addEventListener('click', () => {
+  openUrlDialog.close();
+  input.focus();
+});
+
+openUrlForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const url = openUrlInput.value;
+  openUrlDialog.close();
+  await executeCommand(`:open ${url}`);
+  input.focus();
 });
 
 resetDbButton.addEventListener('click', async () => {
