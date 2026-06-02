@@ -123,6 +123,19 @@ function getOpenUrlPathname(url) {
   return url.split(/[?#]/, 1)[0].toLowerCase();
 }
 
+function quoteCypherString(value) {
+  return `'${value.replace(/'/g, "''")}'`;
+}
+
+function getUrlBasePath(url) {
+  const cleanUrl = url.split(/[?#]/, 1)[0];
+  const slashIndex = cleanUrl.lastIndexOf('/');
+  if (slashIndex === -1) {
+    return '';
+  }
+  return cleanUrl.slice(0, slashIndex);
+}
+
 function splitCypherScript(script) {
   const statements = [];
   let current = '';
@@ -299,6 +312,14 @@ async function executeCypherScript(url) {
     return;
   }
 
+  const basePath = getUrlBasePath(url);
+  if (basePath) {
+    const ok = await prependFileSearchPath(basePath);
+    if (!ok) {
+      return;
+    }
+  }
+
   const statements = splitCypherScript(script);
   if (statements.length === 0) {
     print('No Cypher statements found', 'info');
@@ -314,6 +335,46 @@ async function executeCypherScript(url) {
       print('Stopped executing script after error', 'error');
       return;
     }
+  }
+}
+
+async function getCurrentFileSearchPath() {
+  let result = null;
+
+  try {
+    result = await conn.query("CALL CURRENT_SETTING('file_search_path') RETURN *;");
+    if (!result.isSuccess()) {
+      throw new Error(await result.getErrorMessage());
+    }
+
+    const rows = await result.getAllObjects();
+    const row = rows[0] || {};
+    return row.file_search_path || Object.values(row)[0] || '';
+  } finally {
+    if (result) {
+      await result.close().catch(() => {});
+    }
+  }
+}
+
+async function prependFileSearchPath(basePath) {
+  if (!conn) {
+    print('Database not initialized', 'error');
+    return false;
+  }
+
+  try {
+    const currentPath = await getCurrentFileSearchPath();
+    const paths = currentPath ? currentPath.split(',').filter(Boolean) : [];
+    const nextPath = paths.includes(basePath) ? currentPath : [basePath, ...paths].join(',');
+    const ok = await runQuery(`CALL file_search_path=${quoteCypherString(nextPath)}`);
+    if (ok) {
+      print(`File search path: ${nextPath}`, 'info');
+    }
+    return ok;
+  } catch (err) {
+    print(`Error setting file search path: ${err.message}`, 'error');
+    return false;
   }
 }
 
